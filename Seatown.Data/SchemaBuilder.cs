@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Seatown.Data
 {
-    public class ShemaBuilder
+    public class SchemaBuilder
     {
     }
 }
