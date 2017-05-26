@@ -7,15 +7,17 @@ namespace Seatown.Data.Schemas
         {
             // Empty constructor
         }
-        public Column(string schema, string name, string dataType)
+        public Column(string name, string dataType)
         {
             this.Name = name;
-            this.Schema = schema;
             this.DataType = dataType;
         }
         public string Name { get; set; }
-        public string Schema { get; set; }
         public string DataType { get; set; }
 
+        public override string ToString()
+        {
+            return $"{this.Name} {this.DataType}";
+        }
     }
 }

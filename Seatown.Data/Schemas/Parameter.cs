@@ -15,5 +15,9 @@ namespace Seatown.Data.Schemas
         public string Name { get; set; }
         public string DataType { get; set; }
 
+        public override string ToString()
+        {
+            return $"{this.Name} {this.DataType}";
+        }
     }
 }

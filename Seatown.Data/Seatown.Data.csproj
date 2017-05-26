@@ -40,6 +40,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Factory.cs" />
+    <Compile Include="SchemaBuilder.cs" />
     <Compile Include="Schemas\Column.cs" />
     <Compile Include="Schemas\Database.cs" />
     <Compile Include="Schemas\Function.cs" />
@@ -47,7 +49,6 @@
     <Compile Include="Schemas\Procedure.cs" />
     <Compile Include="Schemas\Table.cs" />
     <Compile Include="Schemas\View.cs" />
-    <Compile Include="ShemaBuilder.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

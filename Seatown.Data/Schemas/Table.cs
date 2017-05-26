@@ -10,7 +10,7 @@ namespace Seatown.Data.Schemas
         {
             // Empty constructor
         }
-        public Table(string schema, string name, Column[] columns)
+        public Table(string schema, string name, params Column[] columns)
         {
             this.Name = name;
             this.Schema = schema;
@@ -23,5 +23,16 @@ namespace Seatown.Data.Schemas
         public string Schema { get; set; }
         public List<Column> Columns { get; set; }
         
+        public override string ToString()
+        {
+            if (string.IsNullOrWhiteSpace(this.Schema))
+            {
+                return this.Name;
+            }
+            else
+            {
+                return $"{this.Schema}.{this.Name}";
+            }               
+        }
     }
 }
