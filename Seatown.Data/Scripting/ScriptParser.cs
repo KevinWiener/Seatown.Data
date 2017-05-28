@@ -8,65 +8,50 @@ using Seatown.Data.Scripting.Common;
 
 namespace Seatown.Data.Scripting
 {
-    // TODO: Maybe rename ScriptParser to BatchParser or CommandParser??
-
     public class ScriptParser
     {
 
         #region Properties
 
         // Property default values match T-SQL syntax
-        public string BatchDelimiter { get; set; } = "GO";
+        public string BatchSeparator { get; set; } = "GO";
         public bool CaseSensitive { get; set; } = false;
-        public Dictionary<string, string> BlockDelimiters { get; private set; } = new Dictionary<string, string>() {
+        public Dictionary<string, string> ExclusionDelimiters { get; private set; } = new Dictionary<string, string>() {
             { "--", "\r\n" },
             { "/*", "*/" },
             { "{", "}" },
-            { "[", "]" }
-        };
-        public Dictionary<string, string> TextDelimiters { get; private set; } = new Dictionary<string, string>() {
             { "\'", "\'" },
-            { "\"", "\"" }
+            { "\"", "\"" },
+            { "[", "]" }
         };
 
         #endregion
 
         #region Fluent Methods
 
-        public ScriptParser WithBatchDelimiter(string delimiter)
+        public ScriptParser WithBatchSeparator(string delimiter)
         {
-            this.BatchDelimiter = delimiter.Trim();
+            this.BatchSeparator = delimiter;
+            this.CaseSensitive = false;
             return this;
         }
 
-        public ScriptParser WithCaseSensitive(bool caseSensitive)
+        public ScriptParser WithBatchSeparator(string delimiter, bool caseSensitive)
         {
+            this.BatchSeparator = delimiter;
             this.CaseSensitive = caseSensitive;
             return this;
         }
 
-        public ScriptParser WithBlockDelimiter(string openingDelimiter, string closingDelimiter)
+        public ScriptParser WithExclusionDelimiter(string openingDelimiter, string closingDelimiter)
         {
-            if (this.BlockDelimiters.ContainsKey(openingDelimiter))
+            if (this.ExclusionDelimiters.ContainsKey(openingDelimiter))
             {
-                this.BlockDelimiters[openingDelimiter] = closingDelimiter;
+                this.ExclusionDelimiters[openingDelimiter] = closingDelimiter;
             }
             else
             {
-                this.BlockDelimiters.Add(openingDelimiter, closingDelimiter);
-            }
-            return this;
-        }
-
-        public ScriptParser WithTextDelimiter(string delimiter)
-        {
-            if (this.TextDelimiters.ContainsKey(delimiter))
-            {
-                this.TextDelimiters[delimiter] = delimiter;
-            }
-            else
-            {
-                this.TextDelimiters.Add(delimiter, delimiter);
+                this.ExclusionDelimiters.Add(openingDelimiter, closingDelimiter);
             }
             return this;
         }
@@ -78,11 +63,11 @@ namespace Seatown.Data.Scripting
         public IEnumerable<string> Parse(Stream stream)
         {
             var result = new List<string>();
-            var batch = new StringBuilder();
-            var buffer = new StringBuffer(this.CalculateBufferLength());
-            var commentLevel = new Stack<string>();
-            var stringComparison = this.GetStringComparison();
-            var textLevel = new Stack<string>();
+            var batchAccumulator = new StringBuilder();
+            var delimiters = this.ExclusionDelimiters;
+            var delimiterBuffer = new StringBuffer(this.CalculateBufferLength());
+            var delimiterLevel = new Stack<string>();
+            var stringComparer = this.GetStringComparison();
 
             using (var reader = new StreamReader(stream))
             {
@@ -90,42 +75,36 @@ namespace Seatown.Data.Scripting
                 while (characterCode >= 0)
                 {
                     char character = (char)characterCode;
+                    batchAccumulator.Append(character);
+                    delimiterBuffer.Append(character);
 
-                    batch.Append(character);
-                    buffer.Append(character);
+                    // Determine if we are in a delimiter block (strings, quoted identifer, comments)
+                    this.CalculateDelimiterLevel(delimiterBuffer.Content, delimiters, ref delimiterLevel);
 
-                    // Determine if we are in a text block or quoted identifer block 
-                    this.CalculateLevel(buffer.Content, this.TextDelimiters, ref textLevel);
-                    if (textLevel.Count == 0)
-                    {
-                        // Determine if we are in a comment block
-                        this.CalculateLevel(buffer.Content, this.BlockDelimiters, ref commentLevel);
-                    }
-
-                    // If we find a batch separator not in a text block, quoted identifier block, or comment block, split the batch and reset.
-                    if (commentLevel.Count == 0 && textLevel.Count == 0 && buffer.Content.EndsWith(this.BatchDelimiter, stringComparison))
+                    // If we find a batch separator not in a delimited block, split the batch and reset for the next batch.
+                    if (delimiterLevel.Count == 0 && delimiterBuffer.Content.EndsWith(this.BatchSeparator, stringComparer))
                     {
                         var nextCharacter = (char)reader.Peek();
                         if (string.IsNullOrWhiteSpace(new string(nextCharacter, 1)))
                         {
                             // Remove the batch separator from the end of the batch
-                            batch.Remove(batch.Length - this.BatchDelimiter.Length, this.BatchDelimiter.Length);
+                            batchAccumulator.Remove(batchAccumulator.Length - this.BatchSeparator.Length, this.BatchSeparator.Length);
                             //--------------------------------------------------------------------------------------
                             // TODO: Convert Parse method to use yield return for large scripts??
                             //--------------------------------------------------------------------------------------
                             //yield return batch.ToString().Trim();
-                            result.Add(batch.ToString().Trim());
-                            batch.Clear();
-                            buffer.Clear();
+                            result.Add(batchAccumulator.ToString().Trim());
+                            batchAccumulator.Clear();
+                            delimiterBuffer.Clear();
                         }
                     }
 
                     characterCode = reader.Read();
                 }
 
-                if (!string.IsNullOrWhiteSpace(batch.ToString()))
+                if (!string.IsNullOrWhiteSpace(batchAccumulator.ToString()))
                 {
-                    result.Add(batch.ToString().Trim());
+                    result.Add(batchAccumulator.ToString().Trim());
                     //--------------------------------------------------------------------------------------
                     // TODO: Convert Parse method to use yield return for large scripts??
                     //--------------------------------------------------------------------------------------
@@ -138,8 +117,8 @@ namespace Seatown.Data.Scripting
 
         private int CalculateBufferLength()
         {
-            int bufferLength = this.BatchDelimiter.Length;
-            foreach (KeyValuePair<string, string> kvp in this.BlockDelimiters)
+            int bufferLength = this.BatchSeparator.Length;
+            foreach (KeyValuePair<string, string> kvp in this.ExclusionDelimiters)
             {
                 if (kvp.Key.Length > bufferLength) bufferLength = kvp.Key.Length;
                 if (kvp.Value.Length > bufferLength) bufferLength = kvp.Value.Length;
@@ -148,17 +127,17 @@ namespace Seatown.Data.Scripting
             return (bufferLength + 1);
         }
 
-        private void CalculateLevel(string content, Dictionary<string, string> delimiters, ref Stack<string> levelTracker)
+        private void CalculateDelimiterLevel(string content, Dictionary<string, string> delimiters, ref Stack<string> levelTracker)
         {
             foreach (KeyValuePair<string, string> kvp in delimiters)
             {
-                if (content.EndsWith(kvp.Key))
-                {
-                    levelTracker.Push(kvp.Key);
-                }
-                else if (levelTracker.Count > 0 && levelTracker.Peek().Equals(kvp.Key) && content.EndsWith(kvp.Value))
+                if (levelTracker.Count > 0 && levelTracker.Peek().Equals(kvp.Key) && content.EndsWith(kvp.Value))
                 {
                     levelTracker.Pop();
+                }
+                else if (content.EndsWith(kvp.Key))
+                {
+                    levelTracker.Push(kvp.Key);
                 }
             }
         }
@@ -180,14 +159,13 @@ namespace Seatown.Data.Scripting
         public static ScriptParser FromSql()
         {
             return new ScriptParser()
-                .WithBatchDelimiter("GO")
-                .WithCaseSensitive(false)
-                .WithBlockDelimiter("/*", "*/")
-                .WithBlockDelimiter("--", "\r\n")
-                .WithBlockDelimiter("{", "}")
-                .WithBlockDelimiter("[", "]")
-                .WithTextDelimiter("\'")
-                .WithTextDelimiter("\"");
+                .WithBatchSeparator("GO", false)
+                .WithExclusionDelimiter("/*", "*/")
+                .WithExclusionDelimiter("--", "\r\n")
+                .WithExclusionDelimiter("{", "}")
+                .WithExclusionDelimiter("[", "]")
+                .WithExclusionDelimiter("\'", "\'")
+                .WithExclusionDelimiter("\"", "\"");
         }
 
         #endregion

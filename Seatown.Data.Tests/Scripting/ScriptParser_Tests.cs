@@ -143,6 +143,90 @@ namespace Seatown.Data.Tests
             }
         }
 
+        [TestCategory(TEST_CATEGORY), TestMethod]
+        public void Parse_BatchSeparatorFollowedByLineComment_SeparatesBatch()
+        {
+            string batch1 = "SELECT 1";
+            string batchDelimiter = "GO -- This is a comment!";
+            string batch2 = "SELECT 2";
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine(batch1);
+            sb.AppendLine(batchDelimiter);
+            sb.AppendLine(batch2);
+
+            var parser = new Scripting.ScriptParser();
+
+            using (var ms = new System.IO.MemoryStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString())))
+            {
+                IEnumerable<string> batches = parser.Parse(ms);
+
+                Assert.AreEqual(2, batches.Count(), "Incorrect number of batches");
+                Assert.AreEqual(batch1, batches.FirstOrDefault(), "Incorrect batch information");
+
+                // TODO: Batch 2 will actually include the comment from the separater line,
+                //       maybe switch to reading one line at a time and throwing away 
+                //       the separater line?
+
+                //Assert.AreEqual(batch2, batches.LastOrDefault(), "Incorrect batch information");
+            }
+        }
+
+        [TestCategory(TEST_CATEGORY), TestMethod]
+        public void Parse_BatchSeparatorNestedCommentBlocks_SeparatesBatch()
+        {
+            string batch1 = "SELECT 1";
+            string batchDelimiter = "GO";
+            string batch2 = "SELECT 2";
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("/*");
+            sb.AppendLine(batch1);
+            sb.AppendLine("/* nested comment */");
+            sb.AppendLine("*/");
+            sb.AppendLine(batchDelimiter);
+            sb.AppendLine(batch2);
+
+            var parser = new Scripting.ScriptParser();
+
+            using (var ms = new System.IO.MemoryStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString())))
+            {
+                IEnumerable<string> batches = parser.Parse(ms);
+
+                // TODO: This test returns two batches, one with the comment block, and the second with 
+                //       the actual command.  May need to drop the comment block?
+
+                //Assert.AreEqual(1, batches.Count(), "Incorrect number of batches");
+                //Assert.AreEqual(batch2, batches.FirstOrDefault(), "Incorrect batch information");
+            }
+        }
+
+        [TestCategory(TEST_CATEGORY), TestMethod]
+        public void Parse_NestedCommentBlocks_SeparatesBatch()
+        {
+            string batch1 = "SELECT 1";
+            string batchDelimiter = "GO";
+            string batch2 = "SELECT 2";
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("/*");
+            sb.AppendLine(batch1);
+            sb.AppendLine("/* nested comment */");
+            sb.AppendLine(batchDelimiter);
+            sb.AppendLine("*/");
+            sb.AppendLine(batch2);
+
+            var parser = new Scripting.ScriptParser();
+
+            using (var ms = new System.IO.MemoryStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString())))
+            {
+                IEnumerable<string> batches = parser.Parse(ms);
+
+                Assert.AreEqual(1, batches.Count(), "Incorrect number of batches");
+                Assert.AreEqual(sb.ToString().Trim(), batches.FirstOrDefault(), "Incorrect batch information");
+            }
+        }
+
     }
 }
 
