@@ -137,10 +137,24 @@ namespace Seatown.Data
 
         #region IDisposable
 
+        private bool disposedValue = false; 
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    this.Connection = null;
+                    this.Transaction = null;
+                }
+                disposedValue = true;
+            }
+        }
+
         public void Dispose()
         {
-            this.Connection = null;
-            this.Transaction = null;
+            this.Dispose(true);
         }
 
         #endregion

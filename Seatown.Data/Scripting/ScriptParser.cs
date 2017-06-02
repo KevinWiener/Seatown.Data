@@ -60,6 +60,11 @@ namespace Seatown.Data.Scripting
 
         #region Parsing Methods
 
+        // TODO: Add Parse(string content)
+        // TODO: Add Parse(string content, Encoding encoding)
+        // TODO: Add Parse(string fileName)
+        // TODO: Add Parse(FileInfon fileInfo)
+
         public IEnumerable<string> Parse(Stream stream)
         {
             var result = new List<string>();
@@ -133,14 +138,13 @@ namespace Seatown.Data.Scripting
 
         private int CalculateBufferLength()
         {
-            int bufferLength = this.BatchSeparator.Length;
-            foreach (KeyValuePair<string, string> kvp in this.ExclusionDelimiters)
-            {
-                if (kvp.Key.Length > bufferLength) bufferLength = kvp.Key.Length;
-                if (kvp.Value.Length > bufferLength) bufferLength = kvp.Value.Length;
-            }
+            int[] contentLengths = {
+                this.BatchSeparator.Length,
+                this.ExclusionDelimiters.Keys.Max((s) => s.Length),
+                this.ExclusionDelimiters.Values.Max((s) => s.Length)
+            };
             // Allocate space for the character before our batch separater.
-            return (bufferLength + 1);
+            return (contentLengths.Max() + 1);
         }
 
         private void CalculateDelimiterLevel(string content, ref Stack<string> levelTracker)
