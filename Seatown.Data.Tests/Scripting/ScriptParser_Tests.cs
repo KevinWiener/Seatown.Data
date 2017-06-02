@@ -188,11 +188,10 @@ namespace Seatown.Data.Tests
             {
                 IEnumerable<string> batches = parser.Parse(ms);
 
-                // TODO: This test returns two batches, one with the comment block, and the second with 
-                //       the actual command.  May need to drop the comment block?
-
-                //Assert.AreEqual(1, batches.Count(), "Incorrect number of batches");
-                //Assert.AreEqual(batch2, batches.FirstOrDefault(), "Incorrect batch information");
+                // This test returns two batches, one with the comment block, 
+                // and the second with an actual command.  
+                Assert.AreEqual(2, batches.Count(), "Incorrect number of batches");
+                Assert.AreEqual(batch2, batches.LastOrDefault(), "Incorrect batch information");
             }
         }
 
