@@ -64,7 +64,6 @@ namespace Seatown.Data.Scripting
         {
             var result = new List<string>();
             var batchAccumulator = new StringBuilder();
-            var delimiters = this.ExclusionDelimiters;
             var delimiterBuffer = new StringBuffer(this.CalculateBufferLength());
             var delimiterLevel = new Stack<string>();
             var stringComparer = this.GetStringComparison();
@@ -79,15 +78,32 @@ namespace Seatown.Data.Scripting
                     delimiterBuffer.Append(character);
 
                     // Determine if we are in a delimiter block (strings, quoted identifer, comments)
-                    this.CalculateDelimiterLevel(delimiterBuffer.Content, delimiters, ref delimiterLevel);
+                    this.CalculateDelimiterLevel(delimiterBuffer.Content, ref delimiterLevel);
 
-                    // If we find a batch separator not in a delimited block, split the batch and reset for the next batch.
+                    // If we find a batch separator not in a delimited block, split the batch and reset.
                     if (delimiterLevel.Count == 0 && delimiterBuffer.Content.EndsWith(this.BatchSeparator, stringComparer))
                     {
                         var nextCharacter = (char)reader.Peek();
                         if (string.IsNullOrWhiteSpace(new string(nextCharacter, 1)))
                         {
-                            // Remove the batch separator from the end of the batch
+                            // Read to the next line separator not in a comment block, or to the end of the string.
+                            // This prevents comments after the batch separator from being returned in the next batch.
+                            while (characterCode >= 0)
+                            {
+                                if (delimiterLevel.Count == 0 && delimiterBuffer.Content.EndsWith("\r\n"))
+                                {
+                                    break;
+                                }
+                                else
+                                { 
+                                    characterCode = reader.Read();
+                                    delimiterBuffer.Append((char)characterCode);
+                                    this.CalculateDelimiterLevel(delimiterBuffer.Content, ref delimiterLevel);
+                                }
+                            }
+
+
+                            // Remove the batch separator from the end of the current batch
                             batchAccumulator.Remove(batchAccumulator.Length - this.BatchSeparator.Length, this.BatchSeparator.Length);
                             //--------------------------------------------------------------------------------------
                             // TODO: Convert Parse method to use yield return for large scripts??
@@ -105,9 +121,9 @@ namespace Seatown.Data.Scripting
                 if (!string.IsNullOrWhiteSpace(batchAccumulator.ToString()))
                 {
                     result.Add(batchAccumulator.ToString().Trim());
-                    //--------------------------------------------------------------------------------------
+                    //----------------------------------------------------------------------------------------------
                     // TODO: Convert Parse method to use yield return for large scripts??
-                    //--------------------------------------------------------------------------------------
+                    //----------------------------------------------------------------------------------------------
                     //yield return batch.ToString().Trim();
                 }
             }
@@ -127,9 +143,9 @@ namespace Seatown.Data.Scripting
             return (bufferLength + 1);
         }
 
-        private void CalculateDelimiterLevel(string content, Dictionary<string, string> delimiters, ref Stack<string> levelTracker)
+        private void CalculateDelimiterLevel(string content, ref Stack<string> levelTracker)
         {
-            foreach (KeyValuePair<string, string> kvp in delimiters)
+            foreach (KeyValuePair<string, string> kvp in this.ExclusionDelimiters)
             {
                 if (levelTracker.Count > 0 && levelTracker.Peek().Equals(kvp.Key) && content.EndsWith(kvp.Value))
                 {

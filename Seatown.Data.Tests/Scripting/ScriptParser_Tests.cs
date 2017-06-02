@@ -163,12 +163,7 @@ namespace Seatown.Data.Tests
 
                 Assert.AreEqual(2, batches.Count(), "Incorrect number of batches");
                 Assert.AreEqual(batch1, batches.FirstOrDefault(), "Incorrect batch information");
-
-                // TODO: Batch 2 will actually include the comment from the separater line,
-                //       maybe switch to reading one line at a time and throwing away 
-                //       the separater line?
-
-                //Assert.AreEqual(batch2, batches.LastOrDefault(), "Incorrect batch information");
+                Assert.AreEqual(batch2, batches.LastOrDefault(), "Incorrect batch information");
             }
         }
 
