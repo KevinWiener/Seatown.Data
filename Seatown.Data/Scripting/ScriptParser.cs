@@ -87,12 +87,11 @@ namespace Seatown.Data.Scripting
 
                     // If we find a batch separator not in a delimited block, split the batch and reset.
                     if (delimiterLevel.Count == 0 && delimiterBuffer.Content.EndsWith(this.BatchSeparator, stringComparer))
-                    {
-                        var nextCharacter = (char)reader.Peek();
-                        if (string.IsNullOrWhiteSpace(new string(nextCharacter, 1)))
+                    {                       
+                        if (char.IsWhiteSpace((char)reader.Peek()))
                         {
                             // Read to the next line separator not in a comment block, or to the end of the string.
-                            // This prevents comments after the batch separator from being returned in the next batch.
+                            // This prevents comments after the batch separator being returned in the next batch.
                             while (characterCode >= 0)
                             {
                                 if (delimiterLevel.Count == 0 && delimiterBuffer.Content.EndsWith("\r\n"))
@@ -114,7 +113,10 @@ namespace Seatown.Data.Scripting
                             // TODO: Convert Parse method to use yield return for large scripts??
                             //--------------------------------------------------------------------------------------
                             //yield return batch.ToString().Trim();
-                            result.Add(batchAccumulator.ToString().Trim());
+                            if (!string.IsNullOrWhiteSpace(batchAccumulator.ToString()))
+                            {
+                                result.Add(batchAccumulator.ToString().Trim());
+                            }
                             batchAccumulator.Clear();
                             delimiterBuffer.Clear();
                         }
