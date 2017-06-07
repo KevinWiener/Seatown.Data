@@ -287,9 +287,6 @@ namespace Seatown.Data.Tests
             }
         }
 
-
-
-
         [TestCategory(TEST_CATEGORY), TestMethod]
         public void Parse_SingleHalfQuoteInsideBlockComment_SeparatesBatch()
         {
@@ -305,7 +302,7 @@ namespace Seatown.Data.Tests
                 IEnumerable<string> batches = parser.Parse(ms);
 
                 Assert.AreEqual(2, batches.Count(), "Incorrect number of batches");
-                Assert.AreEqual("/* This doesn't work */\r\nSELECT 1", batches.FirstOrDefault(), "Incorrect batch information");
+                Assert.AreEqual("/* This doesn't return three */\r\nSELECT 1", batches.FirstOrDefault(), "Incorrect batch information");
                 Assert.AreEqual("SELECT 2", batches.LastOrDefault(), "Incorrect batch information");
             }
         }
@@ -325,7 +322,7 @@ namespace Seatown.Data.Tests
                 IEnumerable<string> batches = parser.Parse(ms);
 
                 Assert.AreEqual(2, batches.Count(), "Incorrect number of batches");
-                Assert.AreEqual("--This doesn't work\r\nSELECT 1", batches.FirstOrDefault(), "Incorrect batch information");
+                Assert.AreEqual("--This doesn't return three\r\nSELECT 1", batches.FirstOrDefault(), "Incorrect batch information");
                 Assert.AreEqual("SELECT 2", batches.LastOrDefault(), "Incorrect batch information");
             }
         }
