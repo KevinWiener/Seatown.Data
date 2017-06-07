@@ -16,13 +16,11 @@ namespace Seatown.Data.Scripting
         // Property default values match T-SQL syntax
         public string BatchSeparator { get; set; } = "GO";
         public bool CaseSensitive { get; set; } = false;
-        public Dictionary<string, string> CommentDelimiters { get; private set; } = new Dictionary<string, string>() {
+        public Dictionary<string, string> ExclusionDelimiters { get; private set; } = new Dictionary<string, string>() {
             { "--", "\r\n" },
             { "/*", "*/" },
             { "{", "}" },
-            { "[", "]" }
-        };
-        public Dictionary<string, string> StringDelimiters { get; private set; } = new Dictionary<string, string>() {
+            { "[", "]" },
             { "\'", "\'" },
             { "\"", "\"" }
         };
@@ -45,28 +43,15 @@ namespace Seatown.Data.Scripting
             return this;
         }
 
-        public ScriptParser WithCommentDelimiter(string openingDelimiter, string closingDelimiter)
+        public ScriptParser WithExclusionDelimiter(string openingDelimiter, string closingDelimiter)
         {
-            if (this.CommentDelimiters.ContainsKey(openingDelimiter))
+            if (this.ExclusionDelimiters.ContainsKey(openingDelimiter))
             {
-                this.CommentDelimiters[openingDelimiter] = closingDelimiter;
+                this.ExclusionDelimiters[openingDelimiter] = closingDelimiter;
             }
             else
             {
-                this.CommentDelimiters.Add(openingDelimiter, closingDelimiter);
-            }
-            return this;
-        }
-
-        public ScriptParser WithStringDelimiter(string openingDelimiter, string closingDelimiter)
-        {
-            if (this.StringDelimiters.ContainsKey(openingDelimiter))
-            {
-                this.StringDelimiters[openingDelimiter] = closingDelimiter;
-            }
-            else
-            {
-                this.StringDelimiters.Add(openingDelimiter, closingDelimiter);
+                this.ExclusionDelimiters.Add(openingDelimiter, closingDelimiter);
             }
             return this;
         }
@@ -79,15 +64,16 @@ namespace Seatown.Data.Scripting
         // TODO: Add Parse(string content, Encoding encoding)
         // TODO: Add Parse(string fileName)
         // TODO: Add Parse(FileInfon fileInfo)
+        // TODO: Refactor Parse method to raise maintainability index?
+        // TODO: Add class description comment and usage examples?
+        // TODO: Test stream availability after parse (StreamReader may close/dispose the underlying stream when it is disposed?)
 
         public IEnumerable<string> Parse(Stream stream)
         {
             var result = new List<string>();
-
             var batchAccumulator = new StringBuilder();
-            var commentLevel = new Stack<string>();
-            var delimiterBuffer = new StringBuffer(this.CalculateBufferLength());
-            var stringLevel = new Stack<string>();
+            var contentBuffer = new StringBuffer(this.CalculateBufferLength());
+            var delimiterLevel = new Stack<string>();
             var stringComparer = this.GetStringComparison();
 
             using (var reader = new StreamReader(stream))
@@ -97,28 +83,13 @@ namespace Seatown.Data.Scripting
                 {
                     char character = (char)characterCode;
                     batchAccumulator.Append(character);
-                    delimiterBuffer.Append(character);
+                    contentBuffer.Append(character);
 
                     // Determine if we are in a delimiter block (strings, quoted identifer, comments).
-                    // Comments can contain string delimiters, and strings can contain comment delimiters,
-                    // so we cannot do level tracking for strings in comments, or comments in strings.
-                    if (commentLevel.Count == 0 && stringLevel.Count == 0)
-                    {
-                        this.CalculateDelimiterLevel(delimiterBuffer.Content, this.CommentDelimiters, ref commentLevel);
-                        this.CalculateDelimiterLevel(delimiterBuffer.Content, this.StringDelimiters, ref stringLevel);
-                    }
-                    else if (commentLevel.Count == 0 && stringLevel.Count > 0)
-                    {
-                        this.CalculateDelimiterLevel(delimiterBuffer.Content, this.StringDelimiters, ref stringLevel);
-                    }
-                    else if (commentLevel.Count > 0 && stringLevel.Count == 0)
-                    {
-                        this.CalculateDelimiterLevel(delimiterBuffer.Content, this.CommentDelimiters, ref commentLevel);
-                    }
-
+                    this.CalculateDelimiterLevel(contentBuffer.Content, ref delimiterLevel);
 
                     // If we find a batch separator not in a delimited block, split the batch and reset.
-                    if (commentLevel.Count == 0 && stringLevel.Count == 0 && delimiterBuffer.Content.EndsWith(this.BatchSeparator, stringComparer))
+                    if (delimiterLevel.Count == 0 && contentBuffer.Content.EndsWith(this.BatchSeparator, stringComparer))
                     {                       
                         if (char.IsWhiteSpace((char)reader.Peek()))
                         {
@@ -126,15 +97,15 @@ namespace Seatown.Data.Scripting
                             // This prevents comments after the batch separator being returned in the next batch.
                             while (characterCode >= 0)
                             {
-                                if (commentLevel.Count == 0 && delimiterBuffer.Content.EndsWith("\r\n"))
+                                if (delimiterLevel.Count == 0 && contentBuffer.Content.EndsWith("\r\n"))
                                 {
                                     break;
                                 }
                                 else
                                 { 
                                     characterCode = reader.Read();
-                                    delimiterBuffer.Append((char)characterCode);
-                                    this.CalculateDelimiterLevel(delimiterBuffer.Content, this.CommentDelimiters, ref commentLevel);
+                                    contentBuffer.Append((char)characterCode);
+                                    this.CalculateDelimiterLevel(contentBuffer.Content, ref delimiterLevel);
                                 }
                             }
 
@@ -150,7 +121,7 @@ namespace Seatown.Data.Scripting
                                 result.Add(batchAccumulator.ToString().Trim());
                             }
                             batchAccumulator.Clear();
-                            delimiterBuffer.Clear();
+                            contentBuffer.Clear();
                         }
                     }
 
@@ -174,20 +145,22 @@ namespace Seatown.Data.Scripting
         {
             int[] contentLengths = {
                 this.BatchSeparator.Length,
-                this.CommentDelimiters.Keys.Max((s) => s.Length),
-                this.CommentDelimiters.Values.Max((s) => s.Length),
-                this.StringDelimiters.Keys.Max((s) => s.Length),
-                this.StringDelimiters.Values.Max((s) => s.Length)
+                this.ExclusionDelimiters.Keys.Max((s) => s.Length),
+                this.ExclusionDelimiters.Values.Max((s) => s.Length)
             };
             // Allocate space for the character before our batch separater.
             return (contentLengths.Max() + 1);
         }
 
-        private void CalculateDelimiterLevel(string content, Dictionary<string, string> delimiters, ref Stack<string> levelTracker)
+        private void CalculateDelimiterLevel(string content, ref Stack<string> levelTracker)
         {
+            // Comments can contain string delimiters, and strings can contain comment delimiters,
+            // so we cannot do level tracking for strings in comments, or comments in strings.
+            // Any time we encounter a delimiter block, we will read to the ending delimiter, and
+            // only accumulate levels for the same opening delimiter in case of nested comments.
             if (levelTracker.Count == 0)
             {
-                foreach (KeyValuePair<string, string> kvp in delimiters)
+                foreach (KeyValuePair<string, string> kvp in this.ExclusionDelimiters)
                 {
                     if (levelTracker.Count == 0 && content.EndsWith(kvp.Key))
                     {
@@ -197,15 +170,24 @@ namespace Seatown.Data.Scripting
             }
             else
             {
-                var key = levelTracker.Peek();
-                var value = delimiters.Where((kvp) => kvp.Key.Equals(key)).FirstOrDefault().Value;
-                if (content.EndsWith(key))
+                var openingDelimiter = levelTracker.Peek();
+                var closingDelimiter = this.ExclusionDelimiters.Where((kvp) => kvp.Key.Equals(openingDelimiter)).FirstOrDefault().Value;
+                if (content.EndsWith(openingDelimiter))
                 {
-                    levelTracker.Push(key);
+                    levelTracker.Push(openingDelimiter);
                 }
-                else if (content.EndsWith(value))
+                else if (content.EndsWith(closingDelimiter))
                 {
-                    levelTracker.Pop();
+                    // If this is a line comment, clear the stack, as all 
+                    // instances of a line comment end with a single \r\n.
+                    if (closingDelimiter.Equals("\r\n"))
+                    {
+                        levelTracker.Clear();
+                    }
+                    else
+                    {
+                        levelTracker.Pop();
+                    }
                 }
             }
         }
@@ -228,12 +210,12 @@ namespace Seatown.Data.Scripting
         {
             return new ScriptParser()
                 .WithBatchSeparator("GO", false)
-                .WithCommentDelimiter("/*", "*/")
-                .WithCommentDelimiter("--", "\r\n")
-                .WithCommentDelimiter("{", "}")
-                .WithCommentDelimiter("[", "]")
-                .WithStringDelimiter("\'", "\'")
-                .WithStringDelimiter("\"", "\"");
+                .WithExclusionDelimiter("/*", "*/")
+                .WithExclusionDelimiter("--", "\r\n")
+                .WithExclusionDelimiter("{", "}")
+                .WithExclusionDelimiter("[", "]")
+                .WithExclusionDelimiter("\'", "\'")
+                .WithExclusionDelimiter("\"", "\"");
         }
 
         #endregion

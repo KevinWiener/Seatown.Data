@@ -345,6 +345,23 @@ namespace Seatown.Data.Tests
             }
         }
 
+        [TestCategory(TEST_CATEGORY), TestMethod]
+        public void Parse_LineCommentInsideAnotherLineComment_SeparatesBatch()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("-- --");
+            sb.AppendLine("SELECT 1");
+            sb.AppendLine("GO");
+
+            var parser = new Scripting.ScriptParser();
+            using (var ms = new System.IO.MemoryStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString())))
+            {
+                IEnumerable<string> batches = parser.Parse(ms);
+
+                Assert.AreEqual(1, batches.Count(), "Incorrect number of batches");
+                Assert.AreEqual("-- --\r\nSELECT 1", batches.FirstOrDefault(), "Incorrect batch information");
+            }
+        }
 
 
     }
