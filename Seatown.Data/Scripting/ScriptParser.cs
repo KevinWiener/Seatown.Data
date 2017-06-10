@@ -15,6 +15,7 @@ namespace Seatown.Data.Scripting
 
         // Property default values match T-SQL syntax
         public string BatchSeparator { get; set; } = "GO";
+        public string LineTerminator { get; set; } = "\r\n";
         public bool CaseSensitive { get; set; } = false;
         public Dictionary<string, string> ExclusionDelimiters { get; private set; } = new Dictionary<string, string>() {
             { "--", "\r\n" },
@@ -66,7 +67,7 @@ namespace Seatown.Data.Scripting
         // TODO: Add Parse(FileInfon fileInfo)
         // TODO: Refactor Parse method to raise maintainability index?
         // TODO: Add class description comment and usage examples?
-        // TODO: Test stream availability after parse (StreamReader may close/dispose the underlying stream when it is disposed?)
+        // TODO: Test stream availability after parse (StreamReader may close/dispose the underlying stream when it is disposed, which may not be the desired behavior?)
 
         public IEnumerable<string> Parse(Stream stream)
         {
@@ -90,14 +91,15 @@ namespace Seatown.Data.Scripting
 
                     // If we find a batch separator not in a delimited block, split the batch and reset.
                     if (delimiterLevel.Count == 0 && contentBuffer.Content.EndsWith(this.BatchSeparator, stringComparer))
-                    {                       
-                        if (char.IsWhiteSpace((char)reader.Peek()))
+                    {
+                        int nextCharacterCode = reader.Peek();
+                        if (nextCharacterCode < 0 || char.IsWhiteSpace((char)nextCharacterCode))
                         {
                             // Read to the next line separator not in a comment block, or to the end of the string.
                             // This prevents comments after the batch separator being returned in the next batch.
                             while (characterCode >= 0)
                             {
-                                if (delimiterLevel.Count == 0 && contentBuffer.Content.EndsWith("\r\n"))
+                                if (delimiterLevel.Count == 0 && contentBuffer.Content.EndsWith(this.LineTerminator))
                                 {
                                     break;
                                 }
@@ -156,8 +158,6 @@ namespace Seatown.Data.Scripting
         {
             // Comments can contain string delimiters, and strings can contain comment delimiters,
             // so we cannot do level tracking for strings in comments, or comments in strings.
-            // Any time we encounter a delimiter block, we will read to the ending delimiter, and
-            // only accumulate levels for the same opening delimiter in case of nested comments.
             if (levelTracker.Count == 0)
             {
                 foreach (KeyValuePair<string, string> kvp in this.ExclusionDelimiters)
@@ -170,17 +170,20 @@ namespace Seatown.Data.Scripting
             }
             else
             {
+                // Any time we encounter a delimiter block, we will read to the ending delimiter, and
+                // only accumulate levels for the same opening delimiter assuming the opening delimiter 
+                // is not equal to the closing delimiter in case of nested comments delimiter blocks.
                 var openingDelimiter = levelTracker.Peek();
                 var closingDelimiter = this.ExclusionDelimiters.Where((kvp) => kvp.Key.Equals(openingDelimiter)).FirstOrDefault().Value;
-                if (content.EndsWith(openingDelimiter))
+                if (content.EndsWith(openingDelimiter) && !openingDelimiter.Equals(closingDelimiter))
                 {
                     levelTracker.Push(openingDelimiter);
                 }
                 else if (content.EndsWith(closingDelimiter))
                 {
-                    // If this is a line comment, clear the stack, as all 
-                    // instances of a line comment end with a single \r\n.
-                    if (closingDelimiter.Equals("\r\n"))
+                    // If this is a line comment, clear the stack, as all instances
+                    // of a line comment end with a single line terminator.
+                    if (closingDelimiter.Equals(this.LineTerminator))
                     {
                         levelTracker.Clear();
                     }
