@@ -8,6 +8,11 @@ using Seatown.Data.Scripting.Common;
 
 namespace Seatown.Data.Scripting
 {
+
+    //--------------------------------------------------------------------------------------------
+    // May replace with Subtext.Scripting: https://github.com/Haacked/Subtext/
+    // Need to run tests to make sure all use cases are covered by this library.
+    //--------------------------------------------------------------------------------------------
     public class ScriptParser
     {
 
@@ -72,19 +77,98 @@ namespace Seatown.Data.Scripting
 
         public IEnumerable<string> Parse(Stream stream)
         {
+            using (var reader = new StreamReader(stream))
+            {
+                return this.Parse(reader);
+            }
+        }
+
+        public IEnumerable<string> Parse(StreamReader reader)
+        {
             var result = new List<string>();
             var batchAccumulator = new StringBuilder();
             var contentBuffer = new StringBuffer(this.CalculateBufferLength());
             var delimiterLevel = new Stack<string>();
             var stringComparer = this.GetStringComparison();
-            
-            using (var reader = new StreamReader(stream))
+
+            int characterCode = reader.Read();
+            while (characterCode >= 0)
             {
-                int characterCode = reader.Read();
-                while (characterCode >= 0)
+                char character = (char)characterCode;
+                batchAccumulator.Append(character);
+                contentBuffer.Append(character);
+
+                // Determine if we are in a delimiter block (strings, quoted identifer, comments).
+                this.CalculateDelimiterLevel(contentBuffer.Content, ref delimiterLevel);
+
+                // If we find a batch separator not in a delimited block, split the batch and reset.
+                if (delimiterLevel.Count == 0 && contentBuffer.Content.EndsWith(this.BatchSeparator, stringComparer))
                 {
-                    char character = (char)characterCode;
-                    batchAccumulator.Append(character);
+                    int nextCharacterCode = reader.Peek();
+                    if (nextCharacterCode < 0 || char.IsWhiteSpace((char)nextCharacterCode))
+                    {
+                        // Read to the next line separator not in a comment block, or to the end of the string.
+                        // This prevents comments after the batch separator being returned in the next batch.
+                        while (characterCode >= 0)
+                        {
+                            if (delimiterLevel.Count == 0 && contentBuffer.Content.EndsWith(this.LineTerminator))
+                            {
+                                break;
+                            }
+                            else
+                            {
+                                characterCode = reader.Read();
+                                contentBuffer.Append((char)characterCode);
+                                this.CalculateDelimiterLevel(contentBuffer.Content, ref delimiterLevel);
+                            }
+                        }
+
+
+                        // Remove the batch separator from the end of the current batch
+                        batchAccumulator.Remove(batchAccumulator.Length - this.BatchSeparator.Length, this.BatchSeparator.Length);
+                        //--------------------------------------------------------------------------------------
+                        // TODO: Convert Parse method to use yield return for large scripts??
+                        //--------------------------------------------------------------------------------------
+                        //yield return batch.ToString().Trim();
+                        if (!string.IsNullOrWhiteSpace(batchAccumulator.ToString()))
+                        {
+                            result.Add(batchAccumulator.ToString().Trim());
+                        }
+                        batchAccumulator.Clear();
+                        contentBuffer.Clear();
+                    }
+                }
+
+                characterCode = reader.Read();
+            }
+
+            if (!string.IsNullOrWhiteSpace(batchAccumulator.ToString()))
+            {
+                result.Add(batchAccumulator.ToString().Trim());
+                //----------------------------------------------------------------------------------------------
+                // TODO: Convert Parse method to use yield return for large scripts??
+                //----------------------------------------------------------------------------------------------
+                //yield return batch.ToString().Trim();
+            }
+
+            return result;
+        }
+
+
+        public IEnumerable<string> ParseByLine(StreamReader reader)
+        {
+            var result = new List<string>();
+            var batchAccumulator = new StringBuilder();
+            var contentBuffer = new StringBuffer(this.CalculateBufferLength());
+            var delimiterLevel = new Stack<string>();
+            var stringComparer = this.GetStringComparison();
+
+            while (reader.Peek() >= 0)
+            {
+                bool separatorLine = false;
+                string line = reader.ReadLine();
+                foreach (char character in line.ToCharArray())
+                {
                     contentBuffer.Append(character);
 
                     // Determine if we are in a delimiter block (strings, quoted identifer, comments).
@@ -93,56 +177,43 @@ namespace Seatown.Data.Scripting
                     // If we find a batch separator not in a delimited block, split the batch and reset.
                     if (delimiterLevel.Count == 0 && contentBuffer.Content.EndsWith(this.BatchSeparator, stringComparer))
                     {
-                        int nextCharacterCode = reader.Peek();
-                        if (nextCharacterCode < 0 || char.IsWhiteSpace((char)nextCharacterCode))
-                        {
-                            // Read to the next line separator not in a comment block, or to the end of the string.
-                            // This prevents comments after the batch separator being returned in the next batch.
-                            while (characterCode >= 0)
-                            {
-                                if (delimiterLevel.Count == 0 && contentBuffer.Content.EndsWith(this.LineTerminator))
-                                {
-                                    break;
-                                }
-                                else
-                                { 
-                                    characterCode = reader.Read();
-                                    contentBuffer.Append((char)characterCode);
-                                    this.CalculateDelimiterLevel(contentBuffer.Content, ref delimiterLevel);
-                                }
-                            }
-
-
-                            // Remove the batch separator from the end of the current batch
-                            batchAccumulator.Remove(batchAccumulator.Length - this.BatchSeparator.Length, this.BatchSeparator.Length);
-                            //--------------------------------------------------------------------------------------
-                            // TODO: Convert Parse method to use yield return for large scripts??
-                            //--------------------------------------------------------------------------------------
-                            //yield return batch.ToString().Trim();
-                            if (!string.IsNullOrWhiteSpace(batchAccumulator.ToString()))
-                            {
-                                result.Add(batchAccumulator.ToString().Trim());
-                            }
-                            batchAccumulator.Clear();
-                            contentBuffer.Clear();
-                        }
+                        separatorLine = true;
                     }
-
-                    characterCode = reader.Read();
                 }
 
-                if (!string.IsNullOrWhiteSpace(batchAccumulator.ToString()))
+                if (separatorLine)
                 {
-                    result.Add(batchAccumulator.ToString().Trim());
-                    //----------------------------------------------------------------------------------------------
+                    //--------------------------------------------------------------------------------------
                     // TODO: Convert Parse method to use yield return for large scripts??
-                    //----------------------------------------------------------------------------------------------
+                    //--------------------------------------------------------------------------------------
                     //yield return batch.ToString().Trim();
+                    if (!string.IsNullOrWhiteSpace(batchAccumulator.ToString()))
+                    {
+                        result.Add(batchAccumulator.ToString().Trim());
+                    }
+                    batchAccumulator.Clear();
+                    contentBuffer.Clear();
+                    separatorLine = false;
+                }
+                else
+                {
+                    batchAccumulator.AppendLine(line);
                 }
             }
 
+            if (!string.IsNullOrWhiteSpace(batchAccumulator.ToString()))
+            {
+                result.Add(batchAccumulator.ToString().Trim());
+                //----------------------------------------------------------------------------------------------
+                // TODO: Convert Parse method to use yield return for large scripts??
+                //----------------------------------------------------------------------------------------------
+                //yield return batch.ToString().Trim();
+            }
+
+
             return result;
         }
+
 
         private int CalculateBufferLength()
         {
