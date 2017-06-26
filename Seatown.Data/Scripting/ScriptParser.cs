@@ -9,10 +9,13 @@ using Seatown.Data.Scripting.Common;
 namespace Seatown.Data.Scripting
 {
 
-    //--------------------------------------------------------------------------------------------
-    // May replace with Subtext.Scripting: https://github.com/Haacked/Subtext/
-    // Need to run tests to make sure all use cases are covered by this library.
-    //--------------------------------------------------------------------------------------------
+    //----------------------------------------------------------------------------------------------------------
+    // May replace this class with Subtext.Scripting, need to run tests to make sure all use cases are covered.
+    // Blog also shows ability to use template parameters, although not sure this is needed?
+    //----------------------------------------------------------------------------------------------------------
+    // https://github.com/Haacked/Subtext/
+    // http://haacked.com/archive/2007/11/04/a-library-for-executing-sql-scripts-with-go-separators-and.aspx/
+    //----------------------------------------------------------------------------------------------------------
     public class ScriptParser
     {
 
