@@ -30,32 +30,32 @@ namespace Seatown.Data.Scripting
 
         #region Fluent Methods
 
-        public ScriptParser WithBatchSeparator(string delimiter)
-        {
-            this.BatchSeparator = delimiter;
-            this.CaseSensitive = false;
-            return this;
-        }
+        //public ScriptParser WithBatchSeparator(string delimiter)
+        //{
+        //    this.BatchSeparator = delimiter;
+        //    this.CaseSensitive = false;
+        //    return this;
+        //}
 
-        public ScriptParser WithBatchSeparator(string delimiter, bool caseSensitive)
-        {
-            this.BatchSeparator = delimiter;
-            this.CaseSensitive = caseSensitive;
-            return this;
-        }
+        //public ScriptParser WithBatchSeparator(string delimiter, bool caseSensitive)
+        //{
+        //    this.BatchSeparator = delimiter;
+        //    this.CaseSensitive = caseSensitive;
+        //    return this;
+        //}
 
-        public ScriptParser WithExclusionDelimiter(string openingDelimiter, string closingDelimiter)
-        {
-            if (this.ExclusionDelimiters.ContainsKey(openingDelimiter))
-            {
-                this.ExclusionDelimiters[openingDelimiter] = closingDelimiter;
-            }
-            else
-            {
-                this.ExclusionDelimiters.Add(openingDelimiter, closingDelimiter);
-            }
-            return this;
-        }
+        //public ScriptParser WithExclusionDelimiter(string openingDelimiter, string closingDelimiter)
+        //{
+        //    if (this.ExclusionDelimiters.ContainsKey(openingDelimiter))
+        //    {
+        //        this.ExclusionDelimiters[openingDelimiter] = closingDelimiter;
+        //    }
+        //    else
+        //    {
+        //        this.ExclusionDelimiters.Add(openingDelimiter, closingDelimiter);
+        //    }
+        //    return this;
+        //}
 
         #endregion
 
@@ -66,6 +66,7 @@ namespace Seatown.Data.Scripting
         // TODO: Add Parse(string fileName)
         // TODO: Add Parse(FileInfon fileInfo)
         // TODO: Refactor Parse method to raise maintainability index?
+        // TODO: Add support for repeating batches?  GO 10?
         // TODO: Add class description comment and usage examples?
         // TODO: Test stream availability after parse (StreamReader may close/dispose the underlying stream when it is disposed, which may not be the desired behavior?)
 
@@ -76,7 +77,7 @@ namespace Seatown.Data.Scripting
             var contentBuffer = new StringBuffer(this.CalculateBufferLength());
             var delimiterLevel = new Stack<string>();
             var stringComparer = this.GetStringComparison();
-
+            
             using (var reader = new StreamReader(stream))
             {
                 int characterCode = reader.Read();
@@ -160,37 +161,79 @@ namespace Seatown.Data.Scripting
             // so we cannot do level tracking for strings in comments, or comments in strings.
             if (levelTracker.Count == 0)
             {
-                foreach (KeyValuePair<string, string> kvp in this.ExclusionDelimiters)
-                {
-                    if (levelTracker.Count == 0 && content.EndsWith(kvp.Key))
-                    {
-                        levelTracker.Push(kvp.Key);
-                    }
-                }
+                this.MatchOpeningDelimiter(content, ref levelTracker);
+
+                //foreach (KeyValuePair<string, string> kvp in this.ExclusionDelimiters)
+                //{
+                //    if (levelTracker.Count == 0 && content.EndsWith(kvp.Key))
+                //    {
+                //        levelTracker.Push(kvp.Key);
+                //    }
+                //}
             }
             else
             {
-                // Any time we encounter a delimiter block, we will read to the ending delimiter, and
-                // only accumulate levels for the same opening delimiter assuming the opening delimiter 
-                // is not equal to the closing delimiter in case of nested comments delimiter blocks.
-                var openingDelimiter = levelTracker.Peek();
-                var closingDelimiter = this.ExclusionDelimiters.Where((kvp) => kvp.Key.Equals(openingDelimiter)).FirstOrDefault().Value;
-                if (content.EndsWith(openingDelimiter) && !openingDelimiter.Equals(closingDelimiter))
+                this.MatchClosingDelimiter(content, ref levelTracker);
+
+                //// Any time we encounter a delimiter block, we will read to the ending delimiter, and
+                //// only accumulate levels for the same opening delimiter assuming the opening delimiter 
+                //// is not equal to the closing delimiter in case of nested exclusion delimiter blocks.
+                //var openingDelimiter = levelTracker.Peek();
+                //var closingDelimiter = this.ExclusionDelimiters.Where((kvp) => kvp.Key.Equals(openingDelimiter)).FirstOrDefault().Value;
+                //if (content.EndsWith(openingDelimiter) && !openingDelimiter.Equals(closingDelimiter))
+                //{
+                //    levelTracker.Push(openingDelimiter);
+                //}
+                //else if (content.EndsWith(closingDelimiter))
+                //{
+                //    // If this is a line comment, clear the stack, as all instances
+                //    // of a line comment end with a single line terminator.
+                //    if (closingDelimiter.Equals(this.LineTerminator))
+                //    {
+                //        levelTracker.Clear();
+                //    }
+                //    else
+                //    {
+                //        levelTracker.Pop();
+                //    }
+                //}
+            }
+        }
+
+        private void MatchOpeningDelimiter(string content, ref Stack<string> levelTracker)
+        {
+            foreach (KeyValuePair<string, string> kvp in this.ExclusionDelimiters)
+            {
+                if (content.EndsWith(kvp.Key))
                 {
-                    levelTracker.Push(openingDelimiter);
+                    levelTracker.Push(kvp.Key);
+                    break;
                 }
-                else if (content.EndsWith(closingDelimiter))
+            }
+        }
+
+        private void MatchClosingDelimiter(string content, ref Stack<string> levelTracker)
+        {
+            // Any time we encounter a delimiter block, we will read to the ending delimiter, and
+            // only accumulate levels for the same opening delimiter assuming the opening delimiter 
+            // is not equal to the closing delimiter in case of nested exclusion delimiter blocks.
+            var openingDelimiter = levelTracker.Peek();
+            var closingDelimiter = this.ExclusionDelimiters.Where((kvp) => kvp.Key.Equals(openingDelimiter)).FirstOrDefault().Value;
+            if (content.EndsWith(openingDelimiter) && !openingDelimiter.Equals(closingDelimiter))
+            {
+                levelTracker.Push(openingDelimiter);
+            }
+            else if (content.EndsWith(closingDelimiter))
+            {
+                // If this is a line comment, clear the stack, as all instances
+                // of a line comment end with a single line terminator.
+                if (closingDelimiter.Equals(this.LineTerminator))
                 {
-                    // If this is a line comment, clear the stack, as all instances
-                    // of a line comment end with a single line terminator.
-                    if (closingDelimiter.Equals(this.LineTerminator))
-                    {
-                        levelTracker.Clear();
-                    }
-                    else
-                    {
-                        levelTracker.Pop();
-                    }
+                    levelTracker.Clear();
+                }
+                else
+                {
+                    levelTracker.Pop();
                 }
             }
         }
@@ -209,17 +252,17 @@ namespace Seatown.Data.Scripting
 
         #region Static Methods
 
-        public static ScriptParser FromSql()
-        {
-            return new ScriptParser()
-                .WithBatchSeparator("GO", false)
-                .WithExclusionDelimiter("/*", "*/")
-                .WithExclusionDelimiter("--", "\r\n")
-                .WithExclusionDelimiter("{", "}")
-                .WithExclusionDelimiter("[", "]")
-                .WithExclusionDelimiter("\'", "\'")
-                .WithExclusionDelimiter("\"", "\"");
-        }
+        //public static ScriptParser FromSql()
+        //{
+        //    return new ScriptParser()
+        //        .WithBatchSeparator("GO", false)
+        //        .WithExclusionDelimiter("/*", "*/")
+        //        .WithExclusionDelimiter("--", "\r\n")
+        //        .WithExclusionDelimiter("{", "}")
+        //        .WithExclusionDelimiter("[", "]")
+        //        .WithExclusionDelimiter("\'", "\'")
+        //        .WithExclusionDelimiter("\"", "\"");
+        //}
 
         #endregion
 

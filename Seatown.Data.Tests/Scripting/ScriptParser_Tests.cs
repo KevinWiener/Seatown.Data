@@ -14,6 +14,8 @@ namespace Seatown.Data.Tests
         // TODO: add performance tests for ScriptParser
         //
         // TODO: add tests for batch delimiter followed by command delimiter (GO;)
+        // TODO: add tests for "/* comment */ go -- comment"
+        // TODO: add tests for "SELECT 1 GO SELECT 2"
         //---------------------------------------------------------------------------------
 
         #region Declarations & Properties
@@ -300,6 +302,57 @@ namespace Seatown.Data.Tests
                 IEnumerable<string> batches = parser.Parse(ms);
 
                 Assert.AreEqual(1, batches.Count(), "Incorrect number of batches");
+                Assert.AreEqual("SELECT 1", batches.FirstOrDefault(), "Incorrect batch information");
+            }
+        }
+
+        [TestCategory(TEST_CATEGORY), TestMethod]
+        public void Parse_CommandFollowedByBatchSeparatorOnTheSameLine_SeparatesBatch()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("SELECT 1; GO SELECT 2;");
+
+            var parser = new Scripting.ScriptParser();
+            using (var ms = new System.IO.MemoryStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString())))
+            {
+                IEnumerable<string> batches = parser.Parse(ms);
+
+                Assert.AreEqual(1, batches.Count(), "Incorrect number of batches");
+                Assert.AreEqual("SELECT 1;", batches.FirstOrDefault(), "Incorrect batch information");
+            }
+        }
+
+        [TestCategory(TEST_CATEGORY), TestMethod]
+        public void Parse_CommandNewlineBatchSeparatorCommandSeparator_DoesNotSeparateBatch()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("SELECT 1");
+            sb.AppendLine("GO;");
+            sb.AppendLine("SELECT 2");
+
+            var parser = new Scripting.ScriptParser();
+            using (var ms = new System.IO.MemoryStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString())))
+            {
+                IEnumerable<string> batches = parser.Parse(ms);
+
+                Assert.AreEqual(1, batches.Count(), "Incorrect number of batches");
+                Assert.AreEqual(sb.ToString().Trim(), batches.FirstOrDefault(), "Incorrect batch information");
+            }
+        }
+
+        [TestCategory(TEST_CATEGORY), TestMethod]
+        public void Parse_BatchSeparatorFollowedByNumber_SeparatesAndRepeatsBatch()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("SELECT 1");
+            sb.AppendLine("GO 10");
+
+            var parser = new Scripting.ScriptParser();
+            using (var ms = new System.IO.MemoryStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString())))
+            {
+                IEnumerable<string> batches = parser.Parse(ms);
+
+                Assert.AreEqual(10, batches.Count(), "Incorrect number of batches");
                 Assert.AreEqual("SELECT 1", batches.FirstOrDefault(), "Incorrect batch information");
             }
         }
