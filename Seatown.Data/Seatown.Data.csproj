@@ -52,6 +52,9 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Scripting\Common\FixedLengthQueue.cs" />
     <Compile Include="Scripting\Common\StringBuffer.cs" />
+    <Compile Include="Scripting\IScriptParser.cs" />
+    <Compile Include="Scripting\CharacterScriptParser.cs" />
+    <Compile Include="Scripting\Common\LineReader.cs" />
     <Compile Include="Scripting\ScriptParser.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
