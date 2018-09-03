@@ -76,11 +76,20 @@ namespace Seatown.Data.Scripting.Common
                 // If we find a batch separator not in a delimited block, split the batch and reset.
                 if (m_DelimiterLevel.Count == 0 && contentBuffer.Content.EndsWith(this.BatchSeparator, this.StringComparer))
                 {
-                    result = this.EndOfLineIsEmpty(s.Substring(i + 1));
-                    if (result)
+                    // Make sure there are no characters prior to the batch separater
+                    char previousCharacter = char.MinValue;
+                    if ((i - this.BatchSeparator.Length) >= 0)
                     {
-                        this.m_Content.Remove(this.m_Content.Length - this.BatchSeparator.Length, this.BatchSeparator.Length);
-                        break;
+                        previousCharacter = characters[i - this.BatchSeparator.Length];
+                    }
+                    if (char.IsControl(previousCharacter) || char.IsWhiteSpace(previousCharacter))
+                    {
+                        result = this.EndOfLineIsEmpty(s.Substring(i + 1));
+                        if (result)
+                        {
+                            this.m_Content.Remove(this.m_Content.Length - this.BatchSeparator.Length, this.BatchSeparator.Length);
+                            break;
+                        }
                     }
                 }
             }

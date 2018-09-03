@@ -14,6 +14,9 @@ namespace Seatown.Data
     public class Factory
     {
 
+        // TODO: Make this a non-static class?
+        // TODO: Add fluent methods for setting parameters and other misc?
+
         #region Properties
 
         public static bool AddNewParameters { get; set; } = false;

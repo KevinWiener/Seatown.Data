@@ -11,6 +11,12 @@ namespace Seatown.Data.Scripting
     public class ScriptParser : IScriptParser
     {
 
+        // TODO: Convert project to .Net Standard 2.0
+        // TODO: Merge feature branch back to main trunk as a starting point for major changes
+        // TODO: Remove any Try/Catch blocks that are just rethrowing the exception
+        // TODO: Finish building out StringBuilder script parser
+        // TODO: Implement Async methods for SchemaBuilder and Factory classes?
+
         #region Properties
 
         public string BatchSeparator { get; set; } = "GO";

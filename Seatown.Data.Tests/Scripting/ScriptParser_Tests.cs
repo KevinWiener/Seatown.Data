@@ -344,6 +344,25 @@ namespace Seatown.Data.Tests
         }
 
         [TestCategory(TEST_CATEGORY), TestMethod]
+        public void Parse_BlockCommentFollowedImmediatelyByBatchSeparator_SeparatesBatch()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("SELECT 1");
+            sb.AppendLine("/* block comment */GO");
+            sb.AppendLine("SELECT 2");
+
+            var parser = this.GetParser();
+            using (var ms = new System.IO.MemoryStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString())))
+            {
+                IEnumerable<string> batches = parser.Parse(ms);
+
+                Assert.AreEqual(2, batches.Count(), "Incorrect number of batches");
+                Assert.AreEqual("SELECT 1\r\n/* block comment */", batches.FirstOrDefault(), "Incorrect batch information");
+                Assert.AreEqual("SELECT 2", batches.LastOrDefault(), "Incorrect batch information");
+            }
+        }
+
+        [TestCategory(TEST_CATEGORY), TestMethod]
         public void Parse_BlockCommentFollowedByBatchSeparatorFollowedByLineComment_SeparatesBatch()
         {
             var sb = new System.Text.StringBuilder();
@@ -363,12 +382,29 @@ namespace Seatown.Data.Tests
         }
 
         [TestCategory(TEST_CATEGORY), TestMethod]
-        public void Parse_CommandFollowedByBatchSeparatorOnTheSameLine_SeparatesBatch()
+        public void Parse_CommandFollowedByBatchSeparatorOnTheSameLine_DoesNotSeparateBatch()
         {
             // TODO: add tests for "SELECT 1 GO SELECT 2"
             //       May need several variations on this test, with \r\n, without, etc.
             var sb = new System.Text.StringBuilder();
             sb.AppendLine("SELECT 1; GO SELECT 2;");
+
+            var parser = this.GetParser();
+            using (var ms = new System.IO.MemoryStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString())))
+            {
+                IEnumerable<string> batches = parser.Parse(ms);
+
+                Assert.AreEqual(1, batches.Count(), "Incorrect number of batches");
+                Assert.AreEqual(sb.ToString().Trim(), batches.FirstOrDefault(), "Incorrect batch information");
+            }
+        }
+
+        [TestCategory(TEST_CATEGORY), TestMethod]
+        public void Parse_ColumnAliasEqualToBatchSeparator_DoesNotSeparateBatch()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("SELECT 1 AS DaysAgo");
+            sb.AppendLine("FROM dbo.SomeTable s");
 
             var parser = this.GetParser();
             using (var ms = new System.IO.MemoryStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString())))
