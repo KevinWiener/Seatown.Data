@@ -63,6 +63,7 @@ namespace Seatown.Data.Scripting.Common
             this.m_Content.Clear();
             var contentBuffer = new StringBuffer(this.CalculateBufferLength());
             var characters = s.ToCharArray();
+            int endingDelimiterIndex = 0;
 
             for (int i = 0; i < characters.Length; i++)
             {
@@ -71,17 +72,23 @@ namespace Seatown.Data.Scripting.Common
                 this.m_Content.Append(c);
 
                 // Determine if we are in a delimiter block (strings, quoted identifer, comments).
+                bool inDelimiter = (this.m_DelimiterLevel.Count > 0);
                 this.CalculateDelimiterLevel(contentBuffer.Content, ref m_DelimiterLevel);
+                if (inDelimiter && this.m_DelimiterLevel.Count == 0)
+                {
+                    endingDelimiterIndex = i;
+                }
 
                 // If we find a batch separator not in a delimited block, split the batch and reset.
                 if (m_DelimiterLevel.Count == 0 && contentBuffer.Content.EndsWith(this.BatchSeparator, this.StringComparer))
                 {
-                    // Make sure there are no characters prior to the batch separater
+                    // Make sure there are no characters prior to the batch separater not in a comment block
                     char previousCharacter = char.MinValue;
-                    if ((i - this.BatchSeparator.Length) >= 0)
+                    if ((i - this.BatchSeparator.Length) > endingDelimiterIndex)
                     {
                         previousCharacter = characters[i - this.BatchSeparator.Length];
                     }
+
                     if (char.IsControl(previousCharacter) || char.IsWhiteSpace(previousCharacter))
                     {
                         result = this.EndOfLineIsEmpty(s.Substring(i + 1));
