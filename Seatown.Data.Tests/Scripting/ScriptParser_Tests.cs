@@ -115,6 +115,25 @@ namespace Seatown.Data.Tests
             }
         }
 
+        [TestCategory(TEST_CATEGORY), TestMethod]
+        public void Parse_EmptyLinesInScript_IncludesEmptyLines()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("SELECT 1");
+            sb.AppendLine();
+            sb.AppendLine("--Text");
+            sb.AppendLine("GO");
+
+            var parser = this.GetParser();
+            using (var ms = new System.IO.MemoryStream(System.Text.Encoding.ASCII.GetBytes(sb.ToString())))
+            {
+                IEnumerable<string> batches = parser.Parse(ms);
+
+                Assert.AreEqual(1, batches.Count(), "Incorrect number of batches");
+                Assert.AreEqual("SELECT 1\r\n\r\n--Text", batches.FirstOrDefault(), "Incorrect batch information");
+            }
+        }
+
         #endregion
 
         #region Complex Syntax Tests

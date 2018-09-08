@@ -65,7 +65,7 @@ namespace Seatown.Data.Scripting
 
                     batchAccumulator.Clear();
                 }
-                else if (!string.IsNullOrWhiteSpace(lineReader.Content))
+                else
                 {
                     batchAccumulator.Append(lineReader.Content);
                 }
