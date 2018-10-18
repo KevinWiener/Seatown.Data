@@ -35,10 +35,12 @@ namespace Seatown.Data
         public DbTransaction Transaction { get; set; } = null;
         public Dictionary<string, DbParameter> Parameters { get; private set; } = new Dictionary<string, DbParameter>();
 
-        public bool AddNewParameters { get; set; } = false;
-        public bool ConvertEmptyStringsToNull { get; set; } = true;
-        public bool InitializeParametersToNull { get; set; } = true;
-        public string ParameterPrefix { get; set; } = "@";
+        public static int DefaultCommandTimeout { get; set; } = 30;
+        public TimeSpan CommandTimeout { get; set; } = TimeSpan.FromSeconds(DefaultCommandTimeout);
+
+        private DbType m_DefaultDbType = (DbType)Enumerable.Range(28, 228).Where(n => !Enum.IsDefined(typeof(DbType), n)).FirstOrDefault();
+        private ParameterDirection m_DefaultParameterDirection = ParameterDirection.Input;
+        private CommandType m_CommandType = CommandType.Text;
 
         private static List<string> m_DatabaseProviders = new List<string>()
         {
@@ -49,10 +51,6 @@ namespace Seatown.Data
             "System.Data.SqlServerCe.3.5",
             "System.Data.SqlServerCe.4.0"
         };
-
-        public static int DefaultCommandTimeout { get; set; } = 30;
-        public TimeSpan CommandTimeout { get; set; } = TimeSpan.FromSeconds(DefaultCommandTimeout);
-
         private static string m_DatabaseProvider = string.Empty;
         public static string DatabaseProvider
         {
@@ -72,6 +70,13 @@ namespace Seatown.Data
                 }
             }
         }
+
+
+        public bool AddNewParameters { get; set; } = false;
+        public bool ConvertEmptyStringsToNull { get; set; } = true;
+        public bool InitializeParametersToNull { get; set; } = true;
+        public string ParameterPrefix { get; set; } = "@";
+
 
         #endregion
 
@@ -183,40 +188,6 @@ namespace Seatown.Data
 
         #region Routines
 
-        public bool ExecuteCommand(string sql, Dictionary<string, object> parameters, CommandType commandType, DbConnection cn, DbTransaction tx)
-        {
-            using (DbCommand cmd = cn.CreateCommand())
-            {
-                cmd.Connection = cn;
-                cmd.Transaction = tx;
-                cmd.CommandText = sql;
-                cmd.CommandTimeout = (int)CommandTimeout.TotalSeconds;
-                cmd.CommandType = commandType;
-
-                if (parameters != null)
-                {
-                    foreach (var kvp in parameters)
-                    {
-                        string parameterName = GetParameterName(kvp.Key);
-                        object parameterValue = GetParameterValue(kvp.Value);
-                        SetCommandParameter(cmd, parameterName, parameterValue, true);
-                    }
-                }
-
-                if (cmd.Connection.State != ConnectionState.Open)
-                {
-                    cmd.Connection.Open();
-                    cmd.ExecuteNonQuery();
-                    cmd.Connection.Close();
-                }
-                else
-                {
-                    cmd.ExecuteNonQuery();
-                }
-            }
-            return true;
-        }
-
         #endregion
 
         #region Helper Methods
@@ -225,7 +196,7 @@ namespace Seatown.Data
         {
             this.Command.CommandText = sql;
             this.Command.CommandTimeout = (int)this.CommandTimeout.TotalSeconds;
-            this.Command.CommandType = this.PredictCommandType(sql);
+            this.Command.CommandType = this.m_CommandType.Equals(CommandType.Text) ? this.PredictCommandType(sql) : this.m_CommandType;
             this.Command.Connection = this.Connection;
             this.Command.Transaction = this.Transaction;
             if (this.Parameters != null && this.Parameters.Count > 0)
@@ -265,9 +236,12 @@ namespace Seatown.Data
         protected string GetParameterName(string parameterName)
         {
             string result = parameterName;
-            if (!string.IsNullOrWhiteSpace(parameterName) || !parameterName.StartsWith(ParameterPrefix.Trim()))
+            if (!string.IsNullOrWhiteSpace(parameterName) && !string.IsNullOrWhiteSpace(this.ParameterPrefix))
             {
-                result = ParameterPrefix.Trim() + parameterName.Trim();
+                if (!parameterName.StartsWith(this.ParameterPrefix.Trim()))
+                {
+                    result = this.ParameterPrefix.Trim() + parameterName.Trim();
+                }
             }
             return result;
         }
@@ -283,50 +257,23 @@ namespace Seatown.Data
                     parameterValue = null;
                 }
             }
-            return result;
-        }
-
-
-
-        protected bool SetCommandParameter(DbCommand cmd, string parameterName, object parameterValue, bool addNewParameters)
-        {
-            bool result = false;
-
-            // Check to see if the parameter already exists
-            IDbDataParameter parameter = null;
-            if (cmd.Parameters.Contains(parameterName))
-            {
-                parameter = cmd.Parameters[parameterName] as IDbDataParameter;
-            }
-            else if (addNewParameters)
-            {
-                parameter = cmd.CreateParameter();
-                parameter.ParameterName = parameterName;
-                cmd.Parameters.Add(parameter);
-            }
-
-            // If we found or created a reference to the parameter, set its value
-            if (parameter != null)
-            {
-                parameter.Value = parameterValue ?? DBNull.Value;
-                result = true;
-            }
-
-            return result;
+            // Convert null objects to DBNull.Value
+            return result ?? DBNull.Value;
         }
 
         #endregion
 
         #region Fluent Methods
 
-        public static Factory Create(DbCommand cmd)
-        {
-            return new Factory { Command = cmd };
-        }
-
         public static Factory Create(DbConnection cn, DbTransaction tx)
         {
             return new Factory { Command = cn.CreateCommand(), Connection = cn, Transaction = tx };
+        }
+
+        public Factory AsStoredProcedure()
+        {
+            this.m_CommandType = CommandType.StoredProcedure;
+            return this;
         }
 
         public Factory WithCommandTimeout(TimeSpan timeout)
@@ -341,31 +288,36 @@ namespace Seatown.Data
 
         public Factory WithParameter(string name, object value)
         {
-            // Infers the DbType from the parameter value, so this cannot 
-            // fall through to the other WithParameter methods.
-            var p = this.Command.CreateParameter();
-            p.ParameterName = this.GetParameterName(name);
-            p.Value = this.GetParameterValue(value);
-            if (this.Parameters.ContainsKey(p.ParameterName))
-            {
-                this.Parameters[p.ParameterName].Value = p.Value;
-            }
-            else
-            {
-                this.Parameters.Add(p.ParameterName, p);
-            }
-            return this;
+            return WithParameter(name, value, this.m_DefaultDbType, this.m_DefaultParameterDirection);
+        }
+
+        public Factory WithParameter(string name, object value, ParameterDirection direction)
+        {
+            return WithParameter(name, value, this.m_DefaultDbType, direction);
         }
 
         public Factory WithParameter(string name, object value, DbType type)
         {
-            return this.WithParameter(name, value, type, ParameterDirection.Input);
+            return this.WithParameter(name, value, type, this.m_DefaultParameterDirection);
         }
 
         public Factory WithParameter(string name, object value, DbType type, ParameterDirection direction)
         {
+            //----------------------------------------------------------------------------------------------
+            // 1. If a DbType is manually set to a specific value, the parameter will be cast to that type.
+            // 2. If the DbType is not set, the DbType will be inferred from the parameter value. 
+            // 3. DbType parameters cannot be passed as null.
+            // 4. At the time of writing, the inferred DbType for DbNull.Value/null was string.
+            // 
+            // With those rules in mind, there is a class level variable that was boxed into an undefined
+            // DbType so it could correctly be identified and ignored, which allowed the the DbType to be
+            // inferred when not specified by the user in one of the overloaded signatures for this method.
+            //----------------------------------------------------------------------------------------------
             var p = this.Command.CreateParameter();
-            p.DbType = type;
+            if (Enum.IsDefined(typeof(DbType), type))
+            {
+                p.DbType = type;
+            }
             p.Direction = direction;
             p.ParameterName = this.GetParameterName(name);
             p.Value = this.GetParameterValue(value);
@@ -387,7 +339,7 @@ namespace Seatown.Data
             this.ParameterPrefix = prefix;
             return this;
         }
-                     
+
 
 
         public Factory SetCommandParameters(DataRow parameterSource)
@@ -424,10 +376,10 @@ namespace Seatown.Data
             return true;
         }
 
-        public IDataReader ExecuteReader(string sql)
+        public DbDataReader ExecuteReader(string sql)
         {
             // Data readers require the connection to remain open during the lifetime of the reader, 
-            // so we cannot manage the connection state other than opening it for the caller.
+            // so we cannot manage the connection state other than ensuring it is open for the caller.
             this.ConfigureCommand(sql);
             ConnectionStateManager.OpenConnection(this.Command.Connection);
             return this.Command.ExecuteReader();
@@ -449,9 +401,16 @@ namespace Seatown.Data
             throw new NotImplementedException();
         }
 
-        public bool FillDataTable(DataTable dt)
+        public bool FillDataTable(string sql, DataTable dt)
         {
-            throw new NotImplementedException();
+            this.ConfigureCommand(sql);
+            using (var csm = new ConnectionStateManager(this.Command.Connection))
+            {
+                dt.BeginLoadData();
+                dt.Load(this.Command.ExecuteReader());
+                dt.EndLoadData();
+            }
+            return true;
         }
 
         public DataSet GetDataSet()
@@ -459,9 +418,11 @@ namespace Seatown.Data
             throw new NotImplementedException();
         }
 
-        public DataTable GetDataTable()
+        public DataTable GetDataTable(string sql)
         {
-            throw new NotImplementedException();
+            var result = new DataTable();
+            this.FillDataTable(sql, result);
+            return result;
         }
 
 

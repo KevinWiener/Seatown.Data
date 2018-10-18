@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Data;
+using System.Data.Common;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Seatown.Data.Tests
@@ -16,5 +19,6 @@ namespace Seatown.Data.Tests
             var factory = Seatown.Data.Factory.Create(null, null)
                 .WithCommandTimeout(TimeSpan.FromSeconds(30));
         }
+
     }
 }

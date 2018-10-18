@@ -9,18 +9,18 @@ namespace Seatown.Data.Common
     /// </summary>
     public class ConnectionStateManager : IDisposable
     {
-        private bool closeConnectionHere = false;
         private DbConnection connection = null;
+        public bool CloseConnection { get; set; } = false;
 
         public ConnectionStateManager(DbConnection cn)
         {
             this.connection = cn;
-            this.closeConnectionHere = ConnectionStateManager.OpenConnection(this.connection);
+            this.CloseConnection = ConnectionStateManager.OpenConnection(this.connection);
         }
 
         public void Dispose()
         {
-            if (closeConnectionHere)
+            if (CloseConnection)
             {
                 connection?.Close();
             }
