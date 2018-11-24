@@ -18,7 +18,6 @@ namespace Seatown.Data
     {
 
         // TODO: Maybe change the class name to CommandFactory??  Implement IDisposable?
-        // TODO: Add support for parameter name mapping?
         // TODO: Add async ExecuteScaler, Fill/Get DataTable/DataSet methods??
         // TODO: Add misc utility methods ValueIsNumeric, ItemIsInList, MapRowChanges, DataTableContainsColumns?
 
@@ -43,11 +42,12 @@ namespace Seatown.Data
         public DbConnection Connection { get; set; } = null;
         public DbTransaction Transaction { get; set; } = null;
         public Dictionary<string, DbParameter> Parameters { get; private set; } = new Dictionary<string, DbParameter>();
+        public Dictionary<string, string> ParameterMappings { get; private set; } = new Dictionary<string, string>();
 
         private CommandType m_CommandType = CommandType.Text;
         private DbType m_DefaultDbType = (DbType)Enumerable.Range(28, 228).Where(n => !Enum.IsDefined(typeof(DbType), n)).FirstOrDefault();
         private ParameterDirection m_DefaultParameterDirection = ParameterDirection.Input;
-        private string m_ParameterPrefix  = DefaultParameterPrefix;
+        private string m_ParameterPrefix = DefaultParameterPrefix;
 
         #endregion
 
@@ -120,11 +120,40 @@ namespace Seatown.Data
         protected string GetParameterName(string parameterName)
         {
             string result = parameterName;
-            if (!string.IsNullOrWhiteSpace(parameterName) && !string.IsNullOrWhiteSpace(this.m_ParameterPrefix))
+            string prefixedParameterName = this.AddPrefix(parameterName);
+            string nonPrefixedParameterName = this.RemovePrefix(parameterName);
+            if (this.ParameterMappings.ContainsKey(prefixedParameterName))
             {
-                if (!parameterName.StartsWith(this.m_ParameterPrefix.Trim()))
+                result = this.ParameterMappings[prefixedParameterName];
+            }
+            else if (this.ParameterMappings.ContainsKey(nonPrefixedParameterName))
+            {
+                result = this.ParameterMappings[nonPrefixedParameterName];
+            }
+            return this.AddPrefix(result);
+        }
+
+        protected string AddPrefix(string parameterName)
+        {
+            string result = parameterName;
+            if (!string.IsNullOrWhiteSpace(this.m_ParameterPrefix))
+            {
+                if (!parameterName.StartsWith(this.m_ParameterPrefix))
                 {
-                    result = this.m_ParameterPrefix.Trim() + parameterName.Trim();
+                    result = this.m_ParameterPrefix + parameterName;
+                }
+            }
+            return result;
+        }
+
+        protected string RemovePrefix(string parameterName)
+        {
+            string result = parameterName;
+            if (!string.IsNullOrWhiteSpace(this.m_ParameterPrefix))
+            {
+                if (parameterName.StartsWith(this.m_ParameterPrefix))
+                {
+                    result = parameterName.Substring(this.m_ParameterPrefix.Length);
                 }
             }
             return result;
@@ -143,6 +172,20 @@ namespace Seatown.Data
             }
             // Convert null objects to DBNull.Value
             return result ?? DBNull.Value;
+        }
+
+        protected void UpdateOutParameters()
+        {
+            foreach (DbParameter p in this.Command.Parameters)
+            {
+                if (p.Direction.Equals(ParameterDirection.Output) || p.Direction.Equals(ParameterDirection.InputOutput))
+                {
+                    if (this.Parameters.ContainsKey(p.ParameterName))
+                    {
+                        this.Parameters[p.ParameterName].Value = p.Value;
+                    }
+                }
+            }
         }
 
         #endregion
@@ -270,6 +313,31 @@ namespace Seatown.Data
             return this;
         }
 
+        public Factory WithParameterMapping(string source, string target)
+        {
+            if (this.ParameterMappings.ContainsKey(source))
+            {
+                this.ParameterMappings[source] = target;
+            }
+            else
+            {
+                this.ParameterMappings.Add(source, target);
+            }
+            return this;
+        }
+
+        public Factory WithParameterMapping(Dictionary<string, string> parameterMap)
+        {
+            if (parameterMap != null)
+            {
+                foreach (var kvp in parameterMap)
+                {
+                    this.WithParameter(kvp.Key, kvp.Value);
+                }
+            }
+            return this;
+        }
+
         public Factory WithParameterPrefix(string prefix)
         {
             this.m_ParameterPrefix = prefix;
@@ -286,6 +354,7 @@ namespace Seatown.Data
             using (var csm = new ConnectionStateManager(this.Command.Connection))
             {
                 this.Command.ExecuteNonQuery();
+                this.UpdateOutParameters();
             }
             return true;
         }
@@ -301,11 +370,14 @@ namespace Seatown.Data
 
         public object ExecuteScaler(string sql)
         {
+            object result = null;
             this.ConfigureCommand(sql);
             using (var csm = new ConnectionStateManager(this.Command.Connection))
             {
-                return this.Command.ExecuteNonQuery();
+                result = this.Command.ExecuteScalar();
+                this.UpdateOutParameters();
             }
+            return result;
         }
 
         public bool FillDataTable(string sql, ref DataTable dt)
@@ -317,6 +389,7 @@ namespace Seatown.Data
                 dt.Load(this.Command.ExecuteReader());
                 dt.EndLoadData();
             }
+            this.UpdateOutParameters();
             return true;
         }
 
@@ -328,55 +401,6 @@ namespace Seatown.Data
         }
 
         #endregion
-
-
-        #region Deprecated Methods
-
-        private DbType DeprecatedConvertTypeCodeToDbType(TypeCode typeCode)
-        {
-            // no TypeCode equivalent for TimeSpan or DateTimeOffset 
-            switch (typeCode)
-            {
-                case TypeCode.Boolean:
-                    return DbType.Boolean;
-                case TypeCode.Byte:
-                    return DbType.Byte;
-                case TypeCode.Char:
-                    return DbType.StringFixedLength;    
-                case TypeCode.DateTime: 
-                    return DbType.DateTime;
-                case TypeCode.Decimal:
-                    return DbType.Decimal;
-                case TypeCode.Double:
-                    return DbType.Double;
-                case TypeCode.Int16:
-                    return DbType.Int16;
-                case TypeCode.Int32:
-                    return DbType.Int32;
-                case TypeCode.Int64:
-                    return DbType.Int64;
-                case TypeCode.SByte:
-                    return DbType.SByte;
-                case TypeCode.Single:
-                    return DbType.Single;
-                case TypeCode.String:
-                    return DbType.String;
-                case TypeCode.UInt16:
-                    return DbType.UInt16;
-                case TypeCode.UInt32:
-                    return DbType.UInt32;
-                case TypeCode.UInt64:
-                    return DbType.UInt64;
-                case TypeCode.DBNull:
-                case TypeCode.Empty:
-                case TypeCode.Object:
-                default:
-                    return DbType.Object;
-            }
-        }
-
-        #endregion
-
 
     }
 }
