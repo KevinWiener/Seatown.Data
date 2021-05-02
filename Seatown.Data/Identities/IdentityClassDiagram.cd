@@ -1,0 +1,56 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ClassDiagram MajorVersion="1" MinorVersion="1">
+  <Class Name="Seatown.Data.Identities.NullableDecimalIdentity">
+    <Position X="2.5" Y="3.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAABAAAAAAAAEAAAABAAAAABAAAAAAAAEAAAAAAA=</HashCode>
+      <FileName>Identities\NullableDecimalIdentity.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" />
+  </Class>
+  <Class Name="Seatown.Data.Identities.StringIdentity">
+    <Position X="4.5" Y="3.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAABAAAAAAAAAAAAABAAAAABAAAAAAAAEAAAAAAA=</HashCode>
+      <FileName>Identities\StringIdentity.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" />
+  </Class>
+  <Class Name="Seatown.Data.Identities.IdentityFactory">
+    <Position X="1.5" Y="6.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAIAAAACAAAAAA=</HashCode>
+      <FileName>Identities\IdentityFactory.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Seatown.Data.Identities.GuidIdentity">
+    <Position X="0.5" Y="3.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAABAAAAAAAAAAAAABAAAAABAAAAAAAAEAAAAAAA=</HashCode>
+      <FileName>Identities\GuidIdentity.cs</FileName>
+    </TypeIdentifier>
+    <Lollipop Position="0.2" />
+  </Class>
+  <Interface Name="Seatown.Data.Identities.IIdentity">
+    <Position X="1.5" Y="0.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAABAAAAAAAAAAAAABAAAAABAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Identities\IIdentity.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Interface Name="Seatown.Data.Identities.IIdentityObject">
+    <Position X="3.5" Y="0.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Identities\IIdentityObject.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Enum Name="Seatown.Data.Identities.IdentityFactoryTypes">
+    <Position X="3.5" Y="6.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAgAAAAQAAAAAAAAAAABAAAAAAAAAEAAAA=</HashCode>
+      <FileName>Identities\IdentityFactory.cs</FileName>
+    </TypeIdentifier>
+  </Enum>
+  <Font Name="Segoe UI" Size="9" />
+</ClassDiagram>

@@ -1,9 +1,10 @@
-﻿using System;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Seatown.Data.Scripting;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Seatown.Data.Tests
+namespace Seatown.Data.Tests.Scripting
 {
     [TestClass]
     public class ScriptParser_Tests
@@ -19,9 +20,9 @@ namespace Seatown.Data.Tests
         public TestContext TestContext { get; set; }
         private const string TEST_CATEGORY = "ScriptParser Tests";
 
-        public Scripting.IScriptParser GetParser()
+        public IScriptParser GetParser()
         {
-            return new Scripting.ScriptParser();
+            return new ScriptParser();
         }
 
         #endregion
