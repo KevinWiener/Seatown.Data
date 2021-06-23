@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 
@@ -10,7 +10,7 @@ namespace Seatown.Data.Validation
     {
         object Source { get; }
         bool IsValid { get; }
-        IList<IValidationEntry> ValidationEntries { get; }
+        IImmutableList<IValidationEntry> ValidationEntries { get; }
     }
 
     public interface IValidationResult<T> : IValidationResult

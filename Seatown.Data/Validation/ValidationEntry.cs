@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 
@@ -11,10 +11,10 @@ namespace Seatown.Data.Validation
         {
             this.Field = field;
             this.ValidationMessages = (validationMessages != null) ?
-                new List<string>(validationMessages) :
-                new List<string>();
+                ImmutableList.Create(validationMessages) :
+                ImmutableList.Create<string>();
         }
         public string Field { get; private set; } = string.Empty;
-        public IList<string> ValidationMessages { get; private set; } = new List<string>();
+        public IImmutableList<string> ValidationMessages { get; private set; }
     }
 }
