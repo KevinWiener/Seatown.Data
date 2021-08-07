@@ -19,7 +19,20 @@ namespace Seatown.Data.Validation.Rules
                 this.m_RuleSets.AddRange(ruleSets);
             }
         }
-
+        
+        public IValidationResult[] Validate(params T[] objectsToValidate)
+        {
+            var result = new List<IValidationResult>();
+            if (objectsToValidate?.Length > 0)
+            {
+                foreach (T objectToValidate in objectsToValidate)
+                {
+                    result.Add(this.Validate(objectToValidate));
+                }
+            }
+            return result.ToArray();
+        }
+        
         public IValidationResult Validate(T objectToValidate)
         {
             bool aggregateResult = true;
